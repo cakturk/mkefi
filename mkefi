@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# mkefi
+__ScriptVersion="0.0.1"
+
+#===  FUNCTION  ================================================================
+#         NAME:  usage
+#  DESCRIPTION:  Display usage information.
+#===============================================================================
+function usage()
+{
+    echo "Usage :  $0 [options] [--]
+
+    Options:
+    -l|cdlabel    set volume name to cdlabel
+    -o|output     place ISO output in file
+    -h|help       Display this message
+    -v|version    Display script version"
+
+}    # ----------  end of function usage  ----------
+
+#-----------------------------------------------------------------------
+#  Handle command line arguments
+#-----------------------------------------------------------------------
+
+while getopts ":l:o:hv" opt
+do
+  case $opt in
+
+    h|help     )  usage; exit 0   ;;
+
+    v|version  )  echo "$0 -- Version $__ScriptVersion"; exit 0   ;;
+
+    l|cdlabel  )  CDLABEL=$OPTARG   ;;
+
+    o|output   )  OUTPATH=$OPTARG   ;;
+
+    * )  echo -e "\n  Option does not exist : $OPTARG\n"
+          usage; exit 1   ;;
+
+  esac    # --- end of case ---
+done
+shift $(($OPTIND-1))
+
+#===  FUNCTION  ================================================================
+#         NAME:  do_mkimage
+#  DESCRIPTION:  make EFI bootable grub binary
+#  ARGUMENTS  : $1 - arch (x86, x86_64)
+#               $2 - directory where modules reside in
+#               $3 - write the generated file to $1
+#  example: do_mkimage x86_64-efi /usr/lib/grub/x86_64-efi/ ./bootx64.efi
+#===============================================================================
+function do_mkimage()
+{
+    ERR=$(grub-mkimage -d $2 -o $3 \
+        -O $1 -p "/EFI/BOOT" all_video boot btrfs cat chain configfile \
+        echo efifwsetup  efinet ext2 fat font gfxmenu gfxterm gzio halt \
+        hfsplus iso9660  jpeg loadenv lvm mdraid09 mdraid1x minicmd normal \
+        part_apple part_msdos part_gpt password_pbkdf2 png reboot search \
+        search_fs_uuid search_fs_file search_label sleep syslinuxcfg test \
+        tftp regexp video xfs linux 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "grub-mkimage: failed to create boot image:" $ERR
+        exit 128;
+    fi
+    return 0
+}
+
+#===  FUNCTION  ================================================================
+#         NAME:  create_efiboot_img
+#  DESCRIPTION:  create pseude filesystem image
+#  ARGUMENTS  : $1 - path/to/efiboot.img
+#===============================================================================
+function create_efiboot_img()
+{
+    OUT=$(dd if=/dev/zero of=$1 bs=1M count=4 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "dd: failed to create:" $1
+        exit 128;
+    fi
+
+    OUT=$(mkfs.vfat -F12 -n "EFI" $1 2>&1)
+    if [[ $? != 0 ]]; then
+        echo "mkfs.vfat error:" $OUT
+        exit 128;
+    fi
+
+    return 0
+}
+
+function mount_fs()
+{
+}
+
+create_efiboot_img ./myfs.img
