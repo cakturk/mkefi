@@ -28,7 +28,8 @@ function usage()
 
     Options:
     -l|cdlabel    set volume name to cdlabel
-    -o|output     place ISO output in file
+    -o|output     put new UEFI ISO into this file
+    -i|input      path to legacy ISO file
     -h|help       Display this message
     -v|version    Display script version"
 
@@ -38,7 +39,7 @@ function usage()
 #  Handle command line arguments
 #-----------------------------------------------------------------------
 
-while getopts ":l:o:hv" opt
+while getopts ":l:o:h:v:" opt
 do
   case $opt in
 
@@ -50,7 +51,7 @@ do
 
     o|output   )  OUTPATH=$OPTARG   ;;
 
-    * )  echo -e "\n  Option does not exist : $OPTARG\n"
+    *)  echo -e "\n  Option does not exist : $OPTARG\n"
           usage; exit 1   ;;
 
   esac    # --- end of case ---
@@ -61,7 +62,7 @@ shift $(($OPTIND-1))
 #         NAME:  do_mkimage
 #  DESCRIPTION:  make EFI bootable grub binary
 #  ARGUMENTS  : $1 - arch (x86, x86_64)
-#               $2 - directory where modules reside in
+#               $2 - directory where grub modules reside in
 #               $3 - write the generated file to $1
 #  example: do_mkimage x86_64-efi /usr/lib/grub/x86_64-efi/ ./bootx64.efi
 #===============================================================================
@@ -151,6 +152,122 @@ function create_efiboot_img()
     return 0
 }
 
+function mktmpdir()
+{
+    ARGS=""
+    if [[ -n $1 ]]; then
+        ARGS="--tmpdir=${1}"
+    fi
+
+    TMPDIR=$(mktemp ${ARGS} -d 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "mktemp error" $TMPDIR
+        exit 127;
+    fi
+
+    echo ${TMPDIR}
+}
+
+function mktmpfile()
+{
+    ARGS=""
+    if [[ -n $1 ]]; then
+        ARGS="--tmpdir=${1}"
+    fi
+
+    TMPDIR=$(mktemp ${ARGS} 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "mktemp error" $TMPDIR
+        exit 127;
+    fi
+
+    echo ${TMPDIR}
+}
+
+#===  FUNCTION  ================================================================
+#         NAME:  cp_a
+#  DESCRIPTION:  cp src to dst while preserving mode, ownership. timestamps
+#  ARGUMENTS  :  $1 - src
+#  ARGUMENTS  :  $2 - dst
+#===============================================================================
+function cp_a()
+{
+    local src=$1
+    local dst=$2
+
+    ERR=$(cp -a ${src} ${dst} 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "${ERR}"
+        exit 127;
+    fi
+}
+function cp_f()
+{
+    local src=$1
+    local dst=$2
+
+    ERR=$(cp -f ${src} ${dst} 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "${ERR}"
+        exit 127;
+    fi
+}
+
+#===  FUNCTION  ================================================================
+#         NAME:  populate_efiboot_img
+#  DESCRIPTION:  populate EFI dirs and copy grub bootloader into this fs
+#  ARGUMENTS  :  $1 - CDLABEL - volume label
+#  ARGUMENTS  :  $2 - path/to/directory
+#===============================================================================
+function populate_efiboot_img()
+{
+    TMPMNT=$(mktmpdir ${2})
+    create_efiboot_img ${2}/efiboot.img
+    mount_fs ${2}/efiboot.img ${TMPMNT}
+
+    if ! mkdir -p ${TMPMNT}/EFI/BOOT > /dev/null 2>&1 ; then
+        echo "mkdir error"
+        exit 127;
+    fi
+
+    do_mkimage x86_64-efi /usr/lib/grub/x86_64-efi/ ${TMPMNT}/EFI/BOOT/BOOTX64.EFI
+    gen_grub_cfg ${1} ${TMPMNT}/EFI/BOOT/grub.cfg
+    umount_fs ${TMPMNT}
+    rm -fr ${TMPMNT} > /dev/null 2>&1
+}
+
+#===  FUNCTION  ================================================================
+#         NAME:  gen_iso_image
+#  DESCRIPTION:  generate UEFI ISO image
+#  ARGUMENTS  :  $1 - place output ISO image in $1
+#  ARGUMENTS  :  $2 - volume id
+#  ARGUMENTS  :  $3 - /path/to/syslinux/installation/on/your/system
+#  ARGUMENTS  :  $4 - /path/to/legacy/rootfs
+#===============================================================================
+function gen_iso_image()
+{
+    ISOFILEPATH=$1
+    VOLID=$2
+    SYSLINUXPATH=$3
+    ROOTFS=$4
+
+    echo "Generating ISO: ${ISOFILEPATH}"
+    ERR=$(xorriso -as mkisofs -o ${ISOFILEPATH} -volid ${VOLID} \
+        -isohybrid-mbr ${SYSLINUXPATH}/isohdpfx.bin -c isolinux/boot.cat -b \
+        isolinux/isolinux.bin -no-emul-boot -boot-load-size 4 -boot-info-table \
+        -eltorito-alt-boot -e isolinux/efiboot.img -no-emul-boot \
+        -isohybrid-gpt-basdat ${ROOTFS} 2>&1)
+
+    if [[ $? != 0 ]]; then
+        echo "${ERR}";
+        exit 127;
+    fi
+}
+
 #===  FUNCTION  ================================================================
 #         NAME:  mount_fs
 #  DESCRIPTION:  mount filesystem image
@@ -160,7 +277,7 @@ function create_efiboot_img()
 function mount_fs()
 {
     if ! mount $1 $2 > /dev/null 2>&1 ; then
-        echo "Failed to mount"
+        echo "Failed to mount" $1
         exit 127;
     fi
     return 0
@@ -180,4 +297,51 @@ function umount_fs()
     return 0
 }
 
-create_efiboot_img ./myfs.img
+#===  FUNCTION  ================================================================
+#         NAME:  main
+#  DESCRIPTION:  main entry point
+#  ARGUMENTS  :  $1 - path/to/legacy.iso
+#  ARGUMENTS  :  $2 - path/to/new.iso
+#  ARGUMENTS  :  $3 - CDLABEL (volume name)
+#===============================================================================
+function main()
+{
+    LEGACY_ISOPATH=$1
+    OUTPUT_ISOPATH=$2
+    CDLABEL=$3
+    WORKDIR=$(dirname ${OUTPUT_ISOPATH})
+
+    DEBIAN_SYSLINUX_PATH=/usr/lib/ISOLINUX
+    REDHAT_SYSLINUX_PATH=/usr/share/syslinux
+
+    if [[ -e ${DEBIAN_SYSLINUX_PATH} ]]; then
+        SYSLINUX_PATH=${DEBIAN_SYSLINUX_PATH}
+    elif [[ -e ${REDHAT_SYSLINUX_PATH} ]]; then
+        SYSLINUX_PATH=${REDHAT_SYSLINUX_PATH}
+    else
+        echo "Your syslinux/isolinux installation could not be found"
+        exit 127;
+    fi
+
+    GRUB_MOD_PATH=/usr/lib/grub/x86_64-efi
+
+    if [[ ! -e ${GRUB_MOD_PATH} ]]; then
+        echo "Your grub-efi installation could not be found"
+        exit 127;
+    fi
+
+    # copy rootfs from legacy iso
+    MNTPOINT=$(mktmpdir /tmp)
+    mount_fs ${LEGACY_ISOPATH} ${MNTPOINT}
+    cp_a ${MNTPOINT} ${WORKDIR}
+    umount_fs ${MNTPOINT}
+    rm -fr ${MNTPOINT} > /dev/null 2>&1
+
+    # generate efiboot partition
+    ROOTFS_PATH=$(basename ${MNTPOINT})
+    populate_efiboot_img ${CDLABEL} ${ROOTFS_PATH}/isolinux
+    gen_iso_image ${OUTPUT_ISOPATH} ${CDLABEL} ${SYSLINUX_PATH} ${ROOTFS_PATH}
+    rm -fr ${ROOTFS_PATH}
+}
+
+main $1 $2 $3
