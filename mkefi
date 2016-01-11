@@ -151,8 +151,33 @@ function create_efiboot_img()
     return 0
 }
 
+#===  FUNCTION  ================================================================
+#         NAME:  mount_fs
+#  DESCRIPTION:  mount filesystem image
+#  ARGUMENTS  :  $1 - path/to/fs.img
+#                $2 - path/to/mountpoint
+#===============================================================================
 function mount_fs()
 {
+    if ! mount $1 $2 > /dev/null 2>&1 ; then
+        echo "Failed to mount"
+        exit 127;
+    fi
+    return 0
+}
+
+#===  FUNCTION  ================================================================
+#         NAME:  umount_fs
+#  DESCRIPTION:  umount filesystem mounted at $1
+#  ARGUMENTS  :  $1 - path/to/mountpoint
+#===============================================================================
+function umount_fs()
+{
+    if ! umount $1 $2 > /dev/null 2>&1 ; then
+        echo "Failed to umount" $1
+        exit 127;
+    fi
+    return 0
 }
 
 create_efiboot_img ./myfs.img
