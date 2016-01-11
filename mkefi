@@ -83,6 +83,52 @@ function do_mkimage()
 }
 
 #===  FUNCTION  ================================================================
+#         NAME:  gen_grub_cfg
+#  DESCRIPTION:  generate grub.cfg
+#  ARGUMENTS  :  $1 - CDLABEL
+#  ARGUMENTS  :  $2 - /path/to/grub.cfg
+#===============================================================================
+function gen_grub_cfg()
+{
+    cat << EOF > $2
+set default="0"
+
+function load_video {
+  insmod efi_gop
+  insmod efi_uga
+  insmod video_bochs
+  insmod video_cirrus
+  insmod all_video
+}
+
+load_video
+set gfxpayload=keep
+insmod gzio
+insmod part_gpt
+insmod ext2
+
+set timeout=10
+### END /etc/grub.d/00_header ###
+
+search --no-floppy --set=root -l '${1}'
+
+### BEGIN /etc/grub.d/10_linux ###
+menuentry 'Start Pardus Kurumsal' --class pardus --class gnu-linux --class gnu --class os {
+	linux /live/vmlinuz root=/dev/disk/by-label/${1} boot=live config live-config.username=pardus live-config.user-fullname=pardus live-config.hostname=pardus live-config.timezone=Europe/Istanbul live-config.utc=yes live-config.nottyautologin live-config.locales=tr_TR.UTF-8,en_US.UTF-8 locale=tr_TR keyboard-layouts=tr keyboard-model=pc105 modprobe.blacklist=floppy file=/cdrom/install/preseed.cfg splash quiet --
+	initrd /live/initrd.img
+}
+menuentry 'Start Pardus in basic graphics mode' --class pardus --class gnu-linux --class gnu --class os {
+	linuxefi /live/vmlinuz root=/dev/disk/by-label/${1} boot=live config live-config.username=pardus live-config.user-fullname=pardus live-config.hostname=pardus live-config.timezone=Europe/Istanbul live-config.utc=yes live-config.nottyautologin live-config.locales=tr_TR.UTF-8,en_US.UTF-8 locale=tr_TR keyboard-layouts=tr keyboard-model=pc105 modprobe.blacklist=floppy file=/cdrom/install/preseed.cfg splash quiet --
+	initrdefi /live/initrd.img
+}
+EOF
+    if [[ $? != 0 ]]; then
+        echo "Could not generate grub.cfg exiting"
+        exit 127;
+    fi
+}
+
+#===  FUNCTION  ================================================================
 #         NAME:  create_efiboot_img
 #  DESCRIPTION:  create pseude filesystem image
 #  ARGUMENTS  : $1 - path/to/efiboot.img
