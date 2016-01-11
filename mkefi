@@ -77,7 +77,7 @@ function do_mkimage()
 
     if [[ $? != 0 ]]; then
         echo "grub-mkimage: failed to create boot image:" $ERR
-        exit 128;
+        exit 127;
     fi
     return 0
 }
@@ -93,13 +93,13 @@ function create_efiboot_img()
 
     if [[ $? != 0 ]]; then
         echo "dd: failed to create:" $1
-        exit 128;
+        exit 127;
     fi
 
     OUT=$(mkfs.vfat -F12 -n "EFI" $1 2>&1)
     if [[ $? != 0 ]]; then
         echo "mkfs.vfat error:" $OUT
-        exit 128;
+        exit 127;
     fi
 
     return 0
