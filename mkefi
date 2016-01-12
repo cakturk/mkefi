@@ -225,7 +225,7 @@ function cp_f()
 #===============================================================================
 function populate_efiboot_img()
 {
-    TMPMNT=$(mktmpdir ${2})
+    TMPMNT=$(mktmpdir /tmp)
     create_efiboot_img ${2}/efiboot.img
     mount_fs ${2}/efiboot.img ${TMPMNT}
 
