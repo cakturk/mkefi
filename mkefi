@@ -338,7 +338,8 @@ function main()
     rm -fr ${MNTPOINT} > /dev/null 2>&1
 
     # generate efiboot partition
-    ROOTFS_PATH=$(basename ${MNTPOINT})
+    ROOTFS_DIR=$(basename ${MNTPOINT})
+    ROOTFS_PATH=${WORKDIR}/${ROOTFS_DIR}
     populate_efiboot_img ${CDLABEL} ${ROOTFS_PATH}/isolinux
     gen_iso_image ${OUTPUT_ISOPATH} ${CDLABEL} ${SYSLINUX_PATH} ${ROOTFS_PATH}
     rm -fr ${ROOTFS_PATH}
