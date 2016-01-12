@@ -1,2 +1,5 @@
 * Use getopts or getopt for parsing command-line arguments
 * Add i386 support, currently we only support x86_64 arch.
+* Script must be executable only as root. If not, throw a warning to stdout and exit 1.
+* mkefi script should be executable with relatively directory iso path arguments.
+* Script should exit immediately when executed via non-argument instead trying to mount something to somewhere.
