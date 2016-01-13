@@ -3,3 +3,4 @@
 * Script must be executable only as root. If not, throw a warning to stdout and exit 1.
 * mkefi script should be executable with relatively directory iso path arguments.
 * Script should exit immediately when executed via non-argument instead trying to mount something to somewhere.
+* It'd be nice, If grub boot entry names are also configurable.
