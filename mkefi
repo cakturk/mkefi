@@ -54,7 +54,7 @@ do
 
     o|output   )  OUTPATH=$OPTARG   ;;
 
-    *)  echo -e "\n  Option does not exist : $OPTARG\n"
+    *)  >&2 echo -e "\n  Option does not exist : $OPTARG\n"
           usage; exit 1   ;;
 
   esac    # --- end of case ---
