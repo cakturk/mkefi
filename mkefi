@@ -17,6 +17,9 @@
 
 # mkefi
 __ScriptVersion="0.0.1"
+if [ -n "$DEBUG"  ]; then
+    set -x
+fi
 
 #===  FUNCTION  ================================================================
 #         NAME:  usage
