@@ -17,9 +17,12 @@
 
 # mkefi
 __ScriptVersion="0.0.1"
-if [ -n "$DEBUG"  ]; then
+if [ -n "$DEBUG" ]; then
     set -x
 fi
+
+MENTRY_DEFAULT="Start Pardus Kurumsal"
+MENTRYSAFE_DEFAULT="Start Pardus Kurumsal in basic graphics mode"
 
 #===  FUNCTION  ================================================================
 #         NAME:  usage
@@ -27,39 +30,100 @@ fi
 #===============================================================================
 function usage()
 {
-    echo "Usage :  $0 [options] [--]
+    echo "Usage : $0 [-h] [-v] --cdlabel LABEL --input LEGACY_ISO --output EFI_ISO
+                     [-m TITLE] [-s TITLE]
 
-    Options:
-    -l|cdlabel    set volume name to cdlabel
-    -o|output     put new UEFI ISO into this file
-    -i|input      path to legacy ISO file
-    -h|help       Display this message
-    -v|version    Display script version"
+    mandatory arguments:
+     -l, --cdlabel       set volume name to cdlabel
+     -i, --input         path to legacy ISO file
+     -o, --output        put new UEFI ISO into this file
+
+    optional arguments
+     -m, --mentry        set default grub menuentry title
+     -s, --mentrysafe    set safe-mode grub menuentry title
+     -h, --help          display this message and exit
+     -v, --version       display script version"
 
 }    # ----------  end of function usage  ----------
 
 #-----------------------------------------------------------------------
 #  Handle command line arguments
 #-----------------------------------------------------------------------
+NUM_ARGS=$#
 
-while getopts ":l:o:h:v:" opt
-do
-  case $opt in
+# Transform long options to short ones
+for arg in "$@"; do
+    shift
+    case "$arg" in
+        "--help") set -- "$@" "-h" ;;
+        "--version") set -- "$@" "-v" ;;
+        "--cdlabel") set -- "$@" "-l" ;;
+        "--input") set -- "$@" "-i" ;;
+        "--output") set -- "$@" "-o" ;;
+        "--mentry") set -- "$@" "-m" ;;
+        "--mentrysafe") set -- "$@" "-s" ;;
+        *) set -- "$@" "$arg"
+    esac
+done
 
-    h|help     )  usage; exit 0   ;;
-
-    v|version  )  echo "$0 -- Version $__ScriptVersion"; exit 0   ;;
-
-    l|cdlabel  )  CDLABEL=$OPTARG   ;;
-
-    o|output   )  OUTPATH=$OPTARG   ;;
-
-    *)  >&2 echo -e "\n  Option does not exist : $OPTARG\n"
-          usage; exit 1   ;;
-
-  esac    # --- end of case ---
+while getopts ":l:i:o:m:s:hv" opt; do
+    case $opt in
+        h|help)
+            usage; exit 0
+            ;;
+        v|version)
+            echo "$0 -- Version $__ScriptVersion"; exit 0
+            ;;
+        l|cdlabel)
+            ARG_CDLABEL=$OPTARG
+            ;;
+        i|input)
+            ARG_INPUT=$OPTARG
+            ;;
+        o|output)
+            ARG_OUTPUT=$OPTARG
+            ;;
+        m|mentry)
+            ARG_MENTRY=$OPTARG
+            ;;
+        s|mentrysafe)
+            ARG_MENTRYSAFE=$OPTARG
+            ;;
+        :)
+            echo "Option -$OPTARG requires an argument." >&2
+            exit 1
+            ;;
+        *)
+            >&2 echo -e "\n  Option does not exist : $OPTARG\n"
+            usage; exit 1
+            ;;
+    esac    # --- end of case ---
 done
 shift $(($OPTIND-1))
+
+NUM_REQIRED_ARGS=6
+if [[ "$NUM_ARGS" -lt "$NUM_REQIRED_ARGS" ]]; then
+    >&2 usage
+    exit 1
+fi
+
+function die_err()
+{
+    >&2 echo "$1"
+    exit 1
+}
+
+if [[ -z "$ARG_CDLABEL" ]] || [[ -z "$ARG_INPUT" ]] || \
+   [[ -z "$ARG_OUTPUT" ]] ; then
+   usage; exit 1
+fi
+
+if [[ -z "$ARG_MENTRY" ]] ; then
+    ARG_MENTRY=$MENTRY_DEFAULT
+fi
+if [[ -z "$ARG_MENTRYSAFE" ]] ; then
+    ARG_MENTRYSAFE=$MENTRYSAFE_DEFAULT
+fi
 
 #===  FUNCTION  ================================================================
 #         NAME:  do_mkimage
@@ -117,11 +181,11 @@ set timeout=10
 search --no-floppy --set=root -l '${1}'
 
 ### BEGIN /etc/grub.d/10_linux ###
-menuentry 'Start Pardus Kurumsal' --class pardus --class gnu-linux --class gnu --class os {
+menuentry '${ARG_MENTRY}' --class pardus --class gnu-linux --class gnu --class os {
 	linux /live/vmlinuz root=/dev/disk/by-label/${1} boot=live config live-config.username=pardus live-config.user-fullname=pardus live-config.hostname=pardus live-config.timezone=Europe/Istanbul live-config.utc=yes live-config.nottyautologin live-config.locales=tr_TR.UTF-8,en_US.UTF-8 locale=tr_TR keyboard-layouts=tr keyboard-model=pc105 modprobe.blacklist=floppy file=/cdrom/install/preseed.cfg splash quiet --
 	initrd /live/initrd.img
 }
-menuentry 'Start Pardus in basic graphics mode' --class pardus --class gnu-linux --class gnu --class os {
+menuentry '${ARG_MENTRYSAFE}' --class pardus --class gnu-linux --class gnu --class os {
 	linuxefi /live/vmlinuz root=/dev/disk/by-label/${1} boot=live config live-config.username=pardus live-config.user-fullname=pardus live-config.hostname=pardus live-config.timezone=Europe/Istanbul live-config.utc=yes live-config.nottyautologin live-config.locales=tr_TR.UTF-8,en_US.UTF-8 locale=tr_TR keyboard-layouts=tr keyboard-model=pc105 modprobe.blacklist=floppy file=/cdrom/install/preseed.cfg splash quiet --
 	initrdefi /live/initrd.img
 }
@@ -348,4 +412,4 @@ function main()
     rm -fr ${ROOTFS_PATH}
 }
 
-main $1 $2 $3
+main ${ARG_INPUT} ${ARG_OUTPUT} ${ARG_CDLABEL}
