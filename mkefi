@@ -365,6 +365,23 @@ function umount_fs()
 }
 
 #===  FUNCTION  ================================================================
+#         NAME:  bail_out
+#  DESCRIPTION:  if something goes wrong, try hard not to leave stale
+#                directories and unused mounts behind.
+#===============================================================================
+function bail_out()
+{
+    umount "${TMPMNT}" > /dev/null 2>&1
+    rm -fr "${TMPMNT}" > /dev/null 2>&1
+
+    umount "${MNTPOINT}" > /dev/null 2>&1
+    rm -fr "${MNTPOINT}" > /dev/null 2>&1
+
+    rm -fr "${ROOTFS_PATH}" > /dev/null 2>&1
+}
+trap bail_out EXIT
+
+#===  FUNCTION  ================================================================
 #         NAME:  main
 #  DESCRIPTION:  main entry point
 #  ARGUMENTS  :  $1 - path/to/legacy.iso
