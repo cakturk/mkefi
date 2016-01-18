@@ -16,7 +16,7 @@
 
 
 # mkefi
-__ScriptVersion="0.0.1"
+__ScriptVersion="0.0.2"
 if [ -n "$DEBUG" ]; then
     set -x
 fi
