@@ -186,7 +186,7 @@ menuentry '${ARG_MENTRY}' --class pardus --class gnu-linux --class gnu --class o
 	initrd /live/initrd.img
 }
 menuentry '${ARG_MENTRYSAFE}' --class pardus --class gnu-linux --class gnu --class os {
-	linux /live/vmlinuz root=/dev/disk/by-label/${1} boot=live config live-config.username=pardus live-config.user-fullname=pardus live-config.hostname=pardus live-config.utc=yes live-config.locales=tr_TR.UTF-8,en_US.UTF-8 locale=tr_TR keyboard-layouts=tr keyboard-model=pc105 live-config.nottyautologin modprobe.blacklist=floppy,fglrx,nvidia live-config.xorg-driver=vesa noapic noapm nodma nomce nolapic nomodeset nosmp noresume acpi=off video=vesa:ywrap,mtrr gfxpayload=800x600x16 vga=788 file=/cdrom/install/preseed.cfg splash quiet --
+	linux /live/vmlinuz root=/dev/disk/by-label/${1} boot=live config live-config.username=pardus live-config.user-fullname=pardus live-config.hostname=pardus live-config.utc=yes live-config.locales=tr_TR.UTF-8,en_US.UTF-8 locale=tr_TR keyboard-layouts=tr keyboard-model=pc105 nomodeset live-config.nottyautologin file=/cdrom/install/preseed.cfg splash quiet --
 	initrd /live/initrd.img
 }
 EOF
