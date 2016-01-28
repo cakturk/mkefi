@@ -286,25 +286,40 @@ function cp_f()
 
 #===  FUNCTION  ================================================================
 #         NAME:  populate_efiboot_img
-#  DESCRIPTION:  populate EFI dirs and copy grub bootloader into this fs
-#  ARGUMENTS  :  $1 - CDLABEL - volume label
-#  ARGUMENTS  :  $2 - path/to/directory
+#  DESCRIPTION:  create an EFI partition with the contents of $1 directory
+#  ARGUMENTS  :  $1 - path/to/content/directory
+#  ARGUMENTS  :  $2 - path/to/output/directory
 #===============================================================================
 function populate_efiboot_img()
 {
+    FSDIR="$1"
+    OUTDIR="$2"
     TMPMNT=$(mktmpdir /tmp)
-    create_efiboot_img ${2}/efiboot.img
-    mount_fs ${2}/efiboot.img ${TMPMNT}
 
-    if ! mkdir -p ${TMPMNT}/EFI/BOOT > /dev/null 2>&1 ; then
-        echo "mkdir error"
-        exit 127;
-    fi
-
-    do_mkimage x86_64-efi /usr/lib/grub/x86_64-efi/ ${TMPMNT}/EFI/BOOT/BOOTX64.EFI
-    gen_grub_cfg ${1} ${TMPMNT}/EFI/BOOT/grub.cfg
+    create_efiboot_img ${OUTDIR}/efiboot.img
+    mount_fs ${OUTDIR}/efiboot.img ${TMPMNT}
+    cp_a "${FSDIR}" "${TMPMNT}"
     umount_fs ${TMPMNT}
+
     rm -fr ${TMPMNT} > /dev/null 2>&1
+}
+
+#===  FUNCTION  ================================================================
+#         NAME:  populate_efi_files
+#  DESCRIPTION:  create the EFI directory structure and generate required
+#                grub bootloader and grub.cfg files under the directory $2
+#  ARGUMENTS  :  $1 - CDLABEL - volume label
+#  ARGUMENTS  :  $2 - path/to/directory
+#===============================================================================
+function populate_efi_files()
+{
+    LBL="$1"
+    TMPEFI="$2"
+
+    mkdir -p ${TMPEFI}/EFI/BOOT > /dev/null 2>&1 || die_err "mkdir error"
+
+    do_mkimage x86_64-efi /usr/lib/grub/x86_64-efi/ ${TMPEFI}/EFI/BOOT/BOOTX64.EFI
+    gen_grub_cfg ${LBL} ${TMPEFI}/EFI/BOOT/grub.cfg
 }
 
 #===  FUNCTION  ================================================================
@@ -378,6 +393,7 @@ function bail_out()
     rm -fr "${MNTPOINT}" > /dev/null 2>&1
 
     rm -fr "${ROOTFS_PATH}" > /dev/null 2>&1
+    rm -fr "${EFI_FS_PATH}" > /dev/null 2>&1
 }
 trap bail_out EXIT
 
@@ -424,9 +440,13 @@ function main()
     # generate efiboot partition
     ROOTFS_DIR=$(basename ${MNTPOINT})
     ROOTFS_PATH=${WORKDIR}/${ROOTFS_DIR}
-    populate_efiboot_img ${CDLABEL} ${ROOTFS_PATH}/isolinux
+    EFI_FS_PATH=$(mktmpdir /tmp)
+    populate_efi_files ${CDLABEL} ${EFI_FS_PATH}
+    populate_efiboot_img "${EFI_FS_PATH}/EFI" ${ROOTFS_PATH}/isolinux
+    cp_a "${EFI_FS_PATH}/EFI" ${ROOTFS_PATH}
     gen_iso_image ${OUTPUT_ISOPATH} ${CDLABEL} ${SYSLINUX_PATH} ${ROOTFS_PATH}
     rm -fr ${ROOTFS_PATH}
+    rm -fr ${EFI_FS_PATH}
 }
 
 main ${ARG_INPUT} ${ARG_OUTPUT} ${ARG_CDLABEL}
